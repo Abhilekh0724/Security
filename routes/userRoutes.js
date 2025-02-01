@@ -8,6 +8,7 @@ const accountLimiter = require('../middleware/accountLimiter');
 // Public routes
 router.post("/create", apiLimiter, userControllers.createUser);
 router.post("/login", accountLimiter, userControllers.loginUser);
+router.post('/logout', verifyToken, userControllers.logoutUser);
 
 // Protected routes
 router.post('/change-password', 

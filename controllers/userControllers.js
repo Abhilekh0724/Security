@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const { ROLES, ROLE_PERMISSIONS } = require('../config/roles');
+const UserLog = require('../models/userLogModel');
 
 // Password strength validation
 const isStrongPassword = (password) => {
@@ -56,6 +57,23 @@ const verifyCaptcha = async (captchaToken) => {
 const isPasswordExpired = (lastPasswordChange) => {
   const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000;
   return Date.now() - new Date(lastPasswordChange).getTime() > ninetyDaysInMs;
+};
+
+// Create log entry function
+const createLoginLog = async (userId, action, status, ipAddress, details = '') => {
+  try {
+    const log = new UserLog({
+      userId,
+      action,
+      status,
+      ipAddress,
+      userAgent: 'Web Browser',
+      details
+    });
+    await log.save();
+  } catch (error) {
+    console.error('Error creating log:', error);
+  }
 };
 
 const createUser = async (req, res) => {
@@ -128,6 +146,7 @@ const createUser = async (req, res) => {
 
 const loginUser = async (req, res) => {
   const { email, password, captchaToken } = req.body;
+  const ipAddress = req.ip || req.connection.remoteAddress;
 
   if (!email || !password) {
     return res.json({
@@ -165,6 +184,7 @@ const loginUser = async (req, res) => {
     // Check if account is locked
     if (user.lockUntil && user.lockUntil > Date.now()) {
       const remainingTime = Math.ceil((user.lockUntil - Date.now()) / 1000 / 60);
+      await createLoginLog(user._id, 'failed_login', 'failure', ipAddress, 'Account locked');
       return res.json({
         success: false,
         message: `Account is locked. Try again in ${remainingTime} minutes`,
@@ -173,6 +193,7 @@ const loginUser = async (req, res) => {
 
     // Check if password has expired
     if (isPasswordExpired(user.lastPasswordChange)) {
+      await createLoginLog(user._id, 'failed_login', 'failure', ipAddress, 'Password expired');
       return res.json({
         success: false,
         message: "Password has expired. Please change your password.",
@@ -196,6 +217,7 @@ const loginUser = async (req, res) => {
         user.loginAttempts = 0;
         
         await user.save();
+        await createLoginLog(user._id, 'failed_login', 'failure', ipAddress, 'Too many failed attempts');
         
         return res.json({
           success: false,
@@ -204,6 +226,7 @@ const loginUser = async (req, res) => {
       }
       
       await user.save();
+      await createLoginLog(user._id, 'failed_login', 'failure', ipAddress, 'Invalid password');
       
       return res.json({
         success: false,
@@ -215,6 +238,9 @@ const loginUser = async (req, res) => {
     user.loginAttempts = 0;
     user.lockUntil = null;
     await user.save();
+
+    // Log successful login
+    await createLoginLog(user._id, 'login', 'success', ipAddress, 'Login successful');
 
     const token = await jwt.sign(
       { id: user._id, isAdmin: user.isAdmin },
@@ -228,7 +254,7 @@ const loginUser = async (req, res) => {
       userData: user,
     });
   } catch (error) {
-    console.log(error);
+    console.error('Login error:', error);
     res.json({
       success: false,
       message: "Internal server error",
@@ -346,9 +372,33 @@ const updateUserRole = async (req, res) => {
   }
 };
 
+// Logout endpoint
+const logoutUser = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    if (userId) {
+      await createLoginLog(userId, 'logout', 'success', ipAddress, 'User logged out');
+    }
+
+    res.json({
+      success: true,
+      message: "Logged out successfully"
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.json({
+      success: false,
+      message: "Error during logout"
+    });
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
+  logoutUser,
   changePassword,
   getAllUsers,
   updateUserRole

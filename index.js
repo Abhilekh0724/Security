@@ -60,6 +60,7 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/review', require('./routes/reviewRoutes'));
 app.use('/api/book', require('./routes/bookRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
+app.use('/api/admin/logs', require('./routes/userLogRoutes'));
 
 if (require.main === module) {
   const PORT = process.env.PORT || 5500;
