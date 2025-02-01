@@ -6,47 +6,95 @@ const Category = require('../models/adminModels');
 
 // Create a new booking
 exports.createBooking = async (req, res) => {
-  const { categoryId, bookingDate } = req.body;
-  const userId = req.user.id; // Corrected to use `id` instead of `_id`
+  const { categoryId, bookingDate, amount } = req.body;
+  const userId = req.user.id;
 
   try {
-    if (!categoryId || !bookingDate) {
-      return res.status(400).json({ success: false, message: 'Category ID and booking date are required' });
+    // Basic validation
+    if (!categoryId || !bookingDate || !amount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Category ID, booking date, and amount are required' 
+      });
     }
 
     if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      return res.status(400).json({ success: false, message: 'Invalid categoryId' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid category ID' 
+      });
     }
 
+    // Validate booking date
     const currentDate = new Date();
-    if (new Date(bookingDate) < currentDate) {
-      return res.status(400).json({ success: false, message: 'Booking date cannot be in the past' });
+    currentDate.setHours(0, 0, 0, 0);
+    const bookingDateObj = new Date(bookingDate);
+    bookingDateObj.setHours(0, 0, 0, 0);
+
+    if (bookingDateObj < currentDate) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Booking date cannot be in the past' 
+      });
     }
 
+    // Check if user exists
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
     }
 
+    // Check if category exists and validate amount
     const category = await Category.findById(categoryId);
     if (!category) {
-      return res.status(404).json({ success: false, message: 'Category not found' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Category not found' 
+      });
     }
 
-    const existingBooking = await Booking.findOne({ userId, categoryId });
+    if (amount !== category.price) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid amount for this venue' 
+      });
+    }
+
+    // Check for existing booking on the same date
+    const existingBooking = await Booking.findOne({
+      categoryId,
+      bookingDate: bookingDateObj,
+      status: { $ne: 'canceled' }
+    });
+
     if (existingBooking) {
-      return res.status(400).json({ success: false, message: 'You cannot book this category more than once' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'This venue is already booked for the selected date' 
+      });
     }
 
-    const newBooking = new Booking({ userId, categoryId, bookingDate });
+    // Create new booking
+    const newBooking = new Booking({
+      userId,
+      categoryId,
+      bookingDate: bookingDateObj,
+      amount,
+      status: 'pending'
+    });
+
     const savedBooking = await newBooking.save();
 
     res.status(201).json({
       success: true,
       booking: savedBooking,
-      message: 'Booking successful. Payment should be made 5 days before the booked date, or it will get canceled.'
+      message: 'Booking confirmed successfully. Please complete the payment within 5 days to avoid automatic cancellation.'
     });
   } catch (error) {
+    console.error('Booking error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create booking',

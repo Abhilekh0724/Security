@@ -1,0 +1,43 @@
+const ROLES = {
+  ADMIN: 'admin',
+  USER: 'user',
+  VENDOR: 'vendor'
+};
+
+const PERMISSIONS = {
+  CREATE_USER: 'create_user',
+  UPDATE_USER: 'update_user',
+  DELETE_USER: 'delete_user',
+  VIEW_USERS: 'view_users',
+  MANAGE_VENUES: 'manage_venues',
+  BOOK_VENUE: 'book_venue',
+  VIEW_BOOKINGS: 'view_bookings',
+  MANAGE_BOOKINGS: 'manage_bookings'
+};
+
+const ROLE_PERMISSIONS = {
+  [ROLES.ADMIN]: [
+    PERMISSIONS.CREATE_USER,
+    PERMISSIONS.UPDATE_USER,
+    PERMISSIONS.DELETE_USER,
+    PERMISSIONS.VIEW_USERS,
+    PERMISSIONS.MANAGE_VENUES,
+    PERMISSIONS.VIEW_BOOKINGS,
+    PERMISSIONS.MANAGE_BOOKINGS
+  ],
+  [ROLES.VENDOR]: [
+    PERMISSIONS.MANAGE_VENUES,
+    PERMISSIONS.VIEW_BOOKINGS,
+    PERMISSIONS.MANAGE_BOOKINGS
+  ],
+  [ROLES.USER]: [
+    PERMISSIONS.BOOK_VENUE,
+    PERMISSIONS.VIEW_BOOKINGS
+  ]
+};
+
+module.exports = {
+  ROLES,
+  PERMISSIONS,
+  ROLE_PERMISSIONS
+}; 
